@@ -41,8 +41,8 @@ int pvRaw=0;
 
 
 
-double set_p = 3.; // bar
-double p_in=10.;// bar
+double set_p = 0.; // bar
+double p_in=8.;// bar
 
 double current_pressure_value = 0;
 
@@ -50,15 +50,13 @@ double prev_error = 0;
 double integral = 0;
 
 
-double Kp =3.13;
-double Ti_Inv = 0.16;
-double Td = 0.03*0;
+double Kp =2;//3.8; //3
+double Ti_Inv = 0.041;// 0.003;// 0.032;
+double Td = 0.02;//0.01;
 
-double gamma_=0.;
+double gamma_=0.2;//0.;
 
-const int valvePins[] = {4, 5, 6, 7, 8, 9};
 
-// pinout: https://docs.arduino.cc/resources/datasheets/ABX00083-datasheet.pdf
 
 const int ledPinRed = 14; // Onboard LED 
 const int ledPinGreen = 15; // Onboard LED 
@@ -68,10 +66,13 @@ const int ledPinBlue = 16; // Onboard LED
 // PWM Configuration
 
 const int pwmChannelValve[] = {4, 5, 6, 7, 8, 9};     // Choose a PWM channel (0-15)
+const int valvePins[]       = {4, 5, 6, 7, 8, 9};
+
+// pinout: https://docs.arduino.cc/resources/datasheets/ABX00083-datasheet.pdf
 const int pwmFrequencyValve = 1000; // Set frequency 
 const int pwmResolutionValve = 14;   // Set resolution, max: 14 bits
 
-uint32_t max_val=pow(2, pwmResolutionValve)-1;//65535;
+uint32_t dc_u_int_max_val=pow(2, pwmResolutionValve)-1;//2^14-1=16383;
 uint32_t dc_u_int;
 
 const int pwmChannelRedLED = 0;     // Choose a PWM channel (0-15)
@@ -152,7 +153,9 @@ void loop()
   // output = movingAverageFilter.process(input); 
  
 
-  pRaw=mapf(pvRaw,105,600,0,5.93);  // pressure in bar(g)
+  // pRaw=mapf(pvRaw,105,600,0,5.93);  // pressure in bar(g)
+
+  pRaw=mapf(pvRaw,620,4095,0,7);  // pressure in bar(g)
 
 
   if (pRaw<0) pRaw=0;
@@ -181,10 +184,10 @@ void loop()
 
   double i_Part=i_Part_unrest;
 
-  double u_max=p_in * Kp+1.;
+  double u_max=p_in;//p_in * Kp;
 
-  if (i_Part<0) i_Part=0;
-  if (i_Part>u_max) i_Part=u_max;
+  // if (i_Part<0) i_Part=0;
+  // if (i_Part>u_max) i_Part=u_max;
 
   // Anti-Windup 
 
@@ -205,24 +208,29 @@ void loop()
 
   // Stellgrößenbeschränkung
   if (u<0) u=0;
-  if (u>0) u=u_max;
+  // if (u>u_max) u=u_max;
 
   // Map the control output to PWM range (0-100) for analogWrite
   //uint16_t dc_u_int = mapf(u, 0, p_in*Kp+1., 0, ICR1);
 
 // Set the duty cycle (0 to max_val)
-  dc_u_int = mapf(u, 0, u_max, 0, max_val);
+
+  // u=u_max/3.;
+  dc_u_int = mapf(u, 0, u_max, 0, dc_u_int_max_val);
+
+  if (dc_u_int>dc_u_int_max_val) dc_u_int=dc_u_int_max_val;
 
 
+  // dc_u_int=0.7*dc_u_int_max_val;
 
   
-  // dc_u_int= dc_set/100.*max_val;
+  // dc_u_int= dc_set/100.*dc_u_int_max_val;
 
   ledcWrite(pwmChannelValve[3],  dc_u_int);
 
   //Serial.println("Hallo, Serial Monitor!");
 
-  while(esp_timer_get_time()-currentMicrosInterval<1000.){} // slow down
+  while(esp_timer_get_time()-currentMicrosInterval<100.){} // slow down
   
   
   dtAvg = avgGen3.process(esp_timer_get_time()-currentMicrosInterval) / 1000000.; 
@@ -241,7 +249,7 @@ void loop()
     // Serial.println("");
     // }
 
-  if (esp_timer_get_time()-currentMicros>500000)
+  if (esp_timer_get_time()-currentMicros>100000)
   {
 
     Serial.print(">");
@@ -264,16 +272,23 @@ void loop()
     Serial.print(pvRaw);     
 
     Serial.print(",pvAvg:");
-    Serial.print(pvAvg);     
+    Serial.print(pvAvg);    
+
+    Serial.print(",dc:");
+    // Serial.print(((double)dc_u_int)/max_val,3);    
+    Serial.print(((double)dc_u_int)/((double)dc_u_int_max_val),3);    
 
     Serial.print(",dc_u_int:");
     Serial.print(dc_u_int);   
+
+    Serial.print(",u_max:");
+    Serial.print(u_max);   
     
-    Serial.print(",tAvg:");
-    Serial.print(dtAvg,4);   
+    Serial.print(",dtAvg:");
+    Serial.print(dtAvg*1000.,1);   
     
     Serial.print(",dt:");
-    Serial.print(dt,4);      
+    Serial.print(dt*1000.,1);      
 
     Serial.print(",Kp:");
     Serial.print(Kp);   
@@ -287,8 +302,18 @@ void loop()
     Serial.print(",gamma_:");  
     Serial.print(gamma_,2);  
 
+    Serial.print(",p_Part:"); 
+    Serial.print(p_Part); 
+    
+    Serial.print(",i_Part:"); 
+    Serial.print(i_Part); 
+    
+    Serial.print(",d_Part:"); 
+    Serial.print(d_Part); 
+    
     Serial.print(",Ti:"); 
     Serial.println(1/Ti_Inv); 
+    
 
     currentMicros=esp_timer_get_time();
 
@@ -316,7 +341,7 @@ void loop()
       Kp+=0.1*getPMOccurancesInStr(inputStr);
 
     else if(inputStr.startsWith("i"))
-      Ti_Inv+=0.01*getPMOccurancesInStr(inputStr);
+      Ti_Inv+=0.0025*getPMOccurancesInStr(inputStr);
 
     else if(inputStr.startsWith("d"))
       Td+=0.01*getPMOccurancesInStr(inputStr);

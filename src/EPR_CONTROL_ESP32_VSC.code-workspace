@@ -3,6 +3,9 @@
 		{
 			"name": "EPR_CONTROL_ESP32_VSC",
 			"path": ".."
+		},
+		{
+			"path": "../../ESP_CONTROL_ESP32_PythonAutomator"
 		}
 	],
 	"settings": {

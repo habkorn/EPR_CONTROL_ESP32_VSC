@@ -36,6 +36,8 @@ uint64_t currentMicrosInterval = esp_timer_get_time(); // used by publish
 
 double dc_set=0.;
 
+bool blinkState=HIGH;
+
 double pRaw=0;
 int pvRaw=0;
 
@@ -99,6 +101,8 @@ void setup()
   pinMode(ledPinRed, OUTPUT);
   pinMode(ledPinGreen, OUTPUT);
   pinMode(ledPinBlue, OUTPUT);
+
+  pinMode(LED_BUILTIN, OUTPUT);
   
   // Configure the PWM channel with the chosen frequency and resolution
   ledcSetup(pwmChannelRedLED, pwmFrequencyLED, pwmResolutionLED);
@@ -252,6 +256,10 @@ void loop()
   if (esp_timer_get_time()-currentMicros>100000)
   {
 
+    
+    blinkState=!blinkState;
+    digitalWrite(LED_BUILTIN, blinkState); 
+    
     Serial.print(">");
     Serial.print("u:");
     Serial.print(u);
